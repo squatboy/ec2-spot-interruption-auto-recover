@@ -6,7 +6,8 @@ This infrastructure example demonstrates how to automate data backup and instanc
 
 
 ## System Architecture
-<img width="890" alt="image" src="https://github.com/user-attachments/assets/82b2eb1a-7b93-47a1-a7d3-86034b527232" />
+<img width="893" alt="image" src="https://github.com/user-attachments/assets/31387c36-775d-4f0a-890f-1db616e03439" />
+
 
 
 ## How It Works
