@@ -5,7 +5,8 @@
 
 
 ## 시스템 구성도
-<img width="890" alt="image" src="https://github.com/user-attachments/assets/10e37bc6-9123-49d8-a633-055a08244934" />
+<img width="893" alt="image" src="https://github.com/user-attachments/assets/0a313274-34b0-45df-98bd-927ade68f759" />
+
 
 
 
