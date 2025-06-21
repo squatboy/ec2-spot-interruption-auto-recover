@@ -35,8 +35,15 @@ resource "aws_autoscaling_group" "app_asg" {
         launch_template_id = aws_launch_template.app.id
         version            = "$Latest"
       }
-      overrides = [for t in var.instance_types : { instance_type = t }]
+
+      dynamic "override" {
+        for_each = var.instance_types
+        content {
+          instance_type = override.value
+        }
+      }
     }
+
     instances_distribution {
       spot_allocation_strategy = "capacity-optimized-prioritized"
     }
