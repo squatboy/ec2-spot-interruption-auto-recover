@@ -6,7 +6,7 @@ This infrastructure example demonstrates how to automate data backup and instanc
 
 
 ## System Architecture
-<img width="893" alt="image" src="https://github.com/user-attachments/assets/31387c36-775d-4f0a-890f-1db616e03439" />
+<img width="895" alt="image" src="https://github.com/user-attachments/assets/1e2b6f85-75b3-4017-8d77-aec0dfd61799" />
 
 
 
@@ -16,16 +16,24 @@ This infrastructure example demonstrates how to automate data backup and instanc
 2. The event triggers an **AWS Lambda** function, which issues an SSM Run Command to perform a graceful shutdown of the application.
 3. The Lambda function then calls for an **EBS volume snapshot** and an **AMI** creation asynchronously.
 4. **Auto Scaling Group** with `capacity_rebalance=true` immediately provisions a replacement Spot instance.
-5. Finally, the Lambda function **re-associates** the Elastic IP to the new instance, completing a seamless recovery without IP changes.
+5. The instance runs a `user-data` script on startup, which automatically mounts the persistent EBS volume and starts the application.
+6. **Alarms & Notifications**:
+   - When a Spot interruption warning is received, an **SNS alert** is triggered.
+   - When the `user-data` script finishes successfully on the new instance, it publishes a **success message** to SNS.
+7. Finally, the Lambda function **re-associates** the Elastic IP to the new instance, completing a near-seamless recovery without IP changes.
 
+---
 
 ## Deployment & Provisioning
 
 ### 1. Prerequisites
 
 - Terraform v1.2 or higher
-- AWS CLI configured with appropriate IAM permissions (EC2, SSM, Lambda, Events)
+- AWS CLI configured with appropriate IAM permissions (EC2, SSM, Lambda, SNS, Events)
+- Valid email address or webhook endpoint for SNS alerts
 - (Optional) GitHub Actions enabled for CI
+
+---
 
 ### 2. Clone & Configure Variables
 
@@ -33,7 +41,7 @@ This infrastructure example demonstrates how to automate data backup and instanc
 git clone <https://github.com/><YOUR_ORG>/aws-spot-autorecover.git
 cd aws-spot-autorecover/terraform
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars to set region, availability_zone, private_subnets, etc.
+# Edit terraform.tfvars to set region, availability_zone, private_subnets, alert_email, etc.
 
 ```
 
@@ -47,13 +55,21 @@ terraform apply -auto-approve
 
 ### 4. Verify Deployment
 
-- Check Auto Scaling Group, Lambda function, EventBridge rule, and Elastic IP in the AWS Console.
+- Check Auto Scaling Group, Lambda function, EventBridge rule, SNS topic and subscription (email or webhook) and Elastic IP in the AWS Console.
 - Ensure the Spot instance launches with the correct tags and resources.
 
 ### 5. Test Recovery
 
-- Simulate a Spot interruption in a low-cost Spot instance.
-- Monitor CloudWatch Logs and Lambda logs to verify each recovery step completes successfully.
+- Launch a low-cost Spot instance via ASG and trigger a manual interruption:
+  ```bash
+  aws ec2 send-spot-instance-interruptions \
+  --instance-ids <your-instance-id>
+  ```
+  
+- Monitor the following:
+  - SNS alert for interruption warning
+  - Lambda logs in CloudWatch (SSM, snapshot, AMI creation)
+  - SNS alert for successful user-data script completion from the new instance
 
 
 
@@ -62,4 +78,4 @@ terraform apply -auto-approve
 - Use the backup AMI only for disaster recovery. Manage production AMI updates through your CI/CD pipeline.
 - Ensure snapshot and AMI creation calls complete within the two-minute warning window; AWS backend will finish the operations asynchronously.
 - For multi-AZ data durability, consider replacing the EBS volume with EFS and updating the user-data script accordingly.
-
+- Replace your own specific commands in the user-data script and Lambda handler with your own application lifecycle logic.
