@@ -26,52 +26,73 @@ This infrastructure example demonstrates how to automate data backup and instanc
 
 ## Deployment & Provisioning
 
+Follow these steps to deploy the infrastructure.
+
 ### 1. Prerequisites
 
-- Terraform v1.2 or higher
-- AWS CLI configured with appropriate IAM permissions (EC2, SSM, Lambda, SNS, Events)
-- Valid email address or webhook endpoint for SNS alerts
-- (Optional) GitHub Actions enabled for CI
+- Terraform v1.2 or higher.
+- AWS CLI configured with appropriate IAM permissions (EC2, SSM, Lambda, SNS, Events, IAM).
+- A custom AMI pre-built with your application.
 
----
+### 2. Prepare Your Environment
 
-### 2. Clone & Configure Variables
+#### Step 2.1: Create a Custom AMI (Mandatory)
+
+This project requires a pre-existing AMI that has your application installed and configured as a systemd service. Terraform will use this AMI to launch new Spot instances.
+
+1.  **Launch a base instance** (e.g., Amazon Linux 2) and install your application.
+2.  **Enable your application as a service** (e.g., `sudo systemctl enable myapp`).
+3.  **Create an AMI** from this instance.
+4.  **Tag the AMI** with `Name` and a value that matches the pattern `myapp-base-*` (e.g., `myapp-base-v1.0`). The Terraform script looks for this tag.
+
+#### Step 2.2: Prepare Configuration File
+
+Clone the repository and create a `terraform.tfvars` file from the example. This file will store your specific configuration values.
 
 ```bash
-git clone <https://github.com/><YOUR_ORG>/aws-spot-autorecover.git
-cd aws-spot-autorecover/terraform
+git clone https://github.com/YOUR_ORG/aws-spot-autorecover.git
+cd aws-spot-autorecover
 cp terraform.tfvars.example terraform.tfvars
-# Edit terraform.tfvars to set region, availability_zone, private_subnets, alert_email, etc.
-
 ```
 
-### 3. Apply Terraform
+Now, edit `terraform.tfvars` and replace the placeholder values with your actual resource information (e.g., your subnet ID and email address).
+
+### 3. Deploy with Terraform
+
+Once your AMI is ready and `terraform.tfvars` is configured, you can deploy the infrastructure.
 
 ```bash
+# Initialize Terraform providers
 terraform init
-terraform apply -auto-approve
 
+# Apply the configuration to create resources in AWS
+terraform apply -auto-approve
 ```
 
 ### 4. Verify Deployment
 
-- Check Auto Scaling Group, Lambda function, EventBridge rule, SNS topic and subscription (email or webhook) and Elastic IP in the AWS Console.
-- Ensure the Spot instance launches with the correct tags and resources.
+1.  **Confirm SNS Subscription**: Check your email for a subscription confirmation link from AWS and click it. You will not receive alerts otherwise.
+2.  **Check Resources**: In the AWS Console, verify that the Auto Scaling Group, Lambda function, EventBridge rule, and Elastic IP have been created.
+3.  **Access Your Application**: Find the public IP of the newly launched `spot-app-instance` and access it via your browser to ensure the application is running.
 
 ### 5. Test Recovery
 
-- Launch a low-cost Spot instance via ASG and trigger a manual interruption:
-  ```bash
-  aws ec2 send-spot-instance-interruptions \
-  --instance-ids <your-instance-id>
-  ```
-  
-- Monitor the following:
-  - SNS alert for interruption warning
-  - Lambda logs in CloudWatch (SSM, snapshot, AMI creation)
-  - SNS alert for successful user-data script completion from the new instance
+Trigger a manual interruption to simulate a Spot instance reclaim event and verify the recovery process.
 
+1.  Get the instance ID of your running Spot instance.
+2.  Run the following AWS CLI command:
+    ```bash
+    aws ec2 send-spot-instance-interruptions \
+      --instance-ids <your-instance-id> \
+      --region <your-aws-region>
+    ```
+3.  **Monitor the recovery**:
+    - You should immediately receive an **SNS alert** for the interruption warning.
+    - After two minutes, a new instance will be provisioned by the Auto Scaling Group.
+    - You will receive another **SNS alert** confirming the user-data script completed successfully on the new instance.
+    - The Elastic IP should be automatically re-associated with the new instance.
 
+---
 
 ## Important Notes
 
