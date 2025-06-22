@@ -59,9 +59,15 @@ aws ec2 attach-volume \
   --device /dev/sdf \
   --region "${AWS_REGION}"
 
-# 4) 디바이스 확인 후 마운트
+# 4) 디바이스 확인 후 마운트 (파일시스템 체크 및 포맷 로직 추가)
 retry test -e /dev/xvdh 30 2 || retry test -e /dev/sdf 30 2
 DEV_PATH=$(test -e /dev/xvdh && echo /dev/xvdh || echo /dev/sdf)
+
+# 파일시스템이 있는지 확인하고, 없으면 ext4로 포맷
+if ! blkid -s TYPE -o value "$DEV_PATH"; then
+  echo "파일시스템이 없어 ${DEV_PATH}를 포맷합니다."
+  mkfs.ext4 "$DEV_PATH"
+fi
 
 mkdir -p /data
 mount "$DEV_PATH" /data
