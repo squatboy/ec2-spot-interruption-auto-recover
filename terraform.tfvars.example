@@ -1,24 +1,25 @@
-# terraform.tfvars.example
+# AWS Region (e.g., "us-east-1")
+region = "ap-northeast-2"
 
-# 1) 배포할 AWS 리전 (variables.tf의 region 변수, default는 ap-northeast-2)
-region           = "ap-northeast-2"
-
-# 2) EBS 데이터 볼륨이 위치할 AZ (variables.tf의 availability_zone)
+# The Availability Zone where the EBS volume and instance will be created.
+# Ensure your subnet is in this AZ.
 availability_zone = "ap-northeast-2a"
 
-# 3) ASG가 사용할 Private Subnet ID 목록 (variables.tf의 private_subnets)
-private_subnets = [
-  "subnet-0123456789abcdef0",
-  "subnet-0fedcba9876543210",
-]
-# 4) SNS 알람 이메일 주소
-alert_email = "me@example.com"
+# A list of subnet IDs where the Auto Scaling Group can launch instances.
+# For this project, a single subnet ID is sufficient.
+# Replace with your actual subnet ID.
+private_subnets = ["subnet-0123456789abcdef0"]
 
-# (선택) Spot 인스턴스 타입 목록, 기본값이 좋으면 주석 처리
-#instance_types = ["m7g.xlarge", "c7g.xlarge", "r7g.xlarge"]
+# The email address to receive SNS notifications for alerts.
+# Replace with your actual email address.
+alert_email = "your-email@example.com"
 
-# (선택) Launch Template 기본 타입, 기본값이 좋으면 주석 처리
-#default_type    = "m7g.xlarge"
+# The instance type to use for the Spot instance.
+# Choose a type available in your selected region and AZ.
+# "t2.micro" or "t3.micro" are good for testing and are Free Tier eligible.
+default_type   = "t2.micro"
+instance_types = ["t2.micro"]
 
-# (선택) 데이터 볼륨 Tag:Name 값, 기본값(myapp-data)이면 주석 처리
-#data_volume_tag = "myapp-data"
+# A unique tag name for the persistent EBS data volume.
+# This tag is used by the user-data script to find and attach the volume.
+data_volume_tag = "spot-recovery-test-data"
