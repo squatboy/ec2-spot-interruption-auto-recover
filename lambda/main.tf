@@ -2,10 +2,6 @@ variable "data_volume_tag" { type = string }
 variable "allocation_id" { type = string }
 variable "region" { type = string }
 
-provider "aws" {
-  region = var.region # 부모 모듈로부터 상속
-}
-
 # IAM Role for Lambda
 resource "aws_iam_role" "lambda_role" {
   name = "spot-backup-lambda-role"
