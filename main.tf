@@ -1,13 +1,3 @@
-terraform {
-  required_version = ">= 1.2"
-  required_providers {
-    aws = {
-      source  = "hashicorp/aws"
-      version = ">= 4.0"
-    }
-  }
-}
-
 provider "aws" {
   region = var.region
 }
@@ -40,7 +30,8 @@ resource "aws_eip" "server" {
 
 # Lambda 모듈 호출
 module "lambda_backup" {
-  source          = "${path.module}/lambda"
+  source          = "./lambda"
   data_volume_tag = var.data_volume_tag
   allocation_id   = aws_eip.server.allocation_id
+  region          = var.region
 }
