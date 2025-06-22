@@ -31,3 +31,8 @@ variable "data_volume_tag" {
   type        = string
   default     = "myapp-data"
 }
+
+variable "alert_email" {
+  description = "알림을 받을 이메일 주소"
+  type        = string
+}
