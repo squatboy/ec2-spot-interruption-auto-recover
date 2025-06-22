@@ -1,26 +1,80 @@
 #!/bin/bash
 set -euo pipefail
 
-# 데이터 볼륨 attach
-VOL_ID=$(aws ec2 describe-volumes \
-  --filters Name=tag:Name,Values=${volume_tag
-} Name=status,Values=available \
-  --query 'Volumes[
-    0
-].VolumeId' --output text --region ${AWS_REGION
-})
-
-aws ec2 attach-volume --volume-id ${VOL_ID
-} \
-  --instance-id $(curl -s http: //169.254.169.254/latest/meta-data/instance-id) \
-  --device /dev/xvdh --region ${AWS_REGION
+# 0) 공통 함수
+retry() {
+  local n=0
+  local max=${2:-12}   # 기본 12회(약 1분)
+  local sleep_s=${3:-5}
+  until "$@"; do
+    ((n++)) && (( n >= max )) && return 1
+    sleep "$sleep_s"
+  done
 }
 
-# 볼륨 ready 대기 및 마운트
-until [ -e /dev/xvdh
-]; do sleep 1; done
-mkdir -p /data
-mount /dev/xvdh /data
+# 1) 메타데이터(IMDSv2)로 식별 정보 확보
+TOKEN=$(curl -fsX PUT "http://169.254.169.254/latest/api/token" \
+        -H "X-aws-ec2-metadata-token-ttl-seconds: 21600")
 
-# 예제 애플리케이션 시작
+meta() {
+  curl -fs -H "X-aws-ec2-metadata-token: $TOKEN" \
+       "http://169.254.169.254/latest/$1"
+}
+
+INSTANCE_ID=$(meta meta-data/instance-id)
+AWS_REGION=$(meta meta-data/placement/region)
+ACCOUNT_ID=$(meta dynamic/instance-identity/document \
+           | grep -oP '"accountId"\s*:\s*"\K[0-9]+')
+
+# 2) ASG 이름 태그 확보 (최대 1분 재시도)
+get_asg() {
+  aws ec2 describe-tags \
+    --filters "Name=resource-id,Values=${INSTANCE_ID}" \
+              "Name=key,Values=aws:autoscaling:groupName" \
+    --region "${AWS_REGION}" \
+    --query 'Tags[0].Value' --output text 2>/dev/null || true
+}
+
+ASG_NAME=$(retry get_asg 12 5 || echo "unknown")
+
+# 3) 데이터 EBS 볼륨 attach
+#     ${volume_tag} → Terraform templatefile 치환 변수
+find_volume() {
+  aws ec2 describe-volumes \
+    --filters "Name=tag:Name,Values=${volume_tag}" \
+              "Name=status,Values=available" \
+    --region "${AWS_REGION}" \
+    --query 'Volumes[0].VolumeId' --output text 2>/dev/null || true
+}
+
+VOL_ID=$(retry find_volume 12 5)   # 최대 1분
+if [[ -z "$VOL_ID" || "$VOL_ID" == "None" ]]; then
+  echo "❌ 데이터 볼륨(${volume_tag})을 찾을 수 없습니다." >&2
+  exit 1
+fi
+
+aws ec2 attach-volume \
+  --volume-id  "${VOL_ID}" \
+  --instance-id "${INSTANCE_ID}" \
+  --device /dev/sdf \
+  --region "${AWS_REGION}"
+
+# 4) 디바이스 확인 후 마운트
+retry test -e /dev/xvdh 30 2 || retry test -e /dev/sdf 30 2
+DEV_PATH=$(test -e /dev/xvdh && echo /dev/xvdh || echo /dev/sdf)
+
+mkdir -p /data
+mount "$DEV_PATH" /data
+
+# 5) 애플리케이션 기동
 systemctl start myapp
+
+# 6) 유저데이터 완료 SNS 알림
+TOPIC_ARN="arn:aws:sns:${AWS_REGION}:${ACCOUNT_ID}:SpotRecoveryAlerts"
+
+aws sns publish \
+  --topic-arn "${TOPIC_ARN}" \
+  --message   "✅ userdata COMPLETE on ${INSTANCE_ID} (ASG=${ASG_NAME})" \
+  --region    "${AWS_REGION}"
+
+exit 0
