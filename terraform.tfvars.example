@@ -11,6 +11,8 @@ private_subnets = [
   "subnet-0123456789abcdef0",
   "subnet-0fedcba9876543210",
 ]
+# 4) SNS 알람 이메일 주소
+alert_email = "me@example.com"
 
 # (선택) Spot 인스턴스 타입 목록, 기본값이 좋으면 주석 처리
 #instance_types = ["m7g.xlarge", "c7g.xlarge", "r7g.xlarge"]
