@@ -4,8 +4,8 @@ set -euo pipefail
 # 0) 공통 함수
 retry() {
   local n=0
-  local max=${2:-12}   # 기본 12회(약 1분)
-  local sleep_s=${3:-5}
+  local max=$${2:-12}   # 수정: 셸 변수 이스케이프
+  local sleep_s=$${3:-5} # 수정: 셸 변수 이스케이프
   until "$@"; do
     ((n++)) && (( n >= max )) && return 1
     sleep "$sleep_s"
@@ -29,58 +29,59 @@ ACCOUNT_ID=$(meta dynamic/instance-identity/document \
 # 2) ASG 이름 태그 확보 (최대 1분 재시도)
 get_asg() {
   aws ec2 describe-tags \
-    --filters "Name=resource-id,Values=${INSTANCE_ID}" \
-              "Name=key,Values=aws:autoscaling:groupName" \
-    --region "${AWS_REGION}" \
+    --filters "Name=resource-id,Values=$${INSTANCE_ID}" "Name=key,Values=aws:autoscaling:groupName" \
+    --region "$${AWS_REGION}" \
     --query 'Tags[0].Value' --output text 2>/dev/null || true
 }
 
 ASG_NAME=$(retry get_asg 12 5 || echo "unknown")
 
 # 3) 데이터 EBS 볼륨 attach
-#     ${volume_tag} → Terraform templatefile 치환 변수
 find_volume() {
   aws ec2 describe-volumes \
     --filters "Name=tag:Name,Values=${volume_tag}" \
               "Name=status,Values=available" \
-    --region "${AWS_REGION}" \
+    --region "$${AWS_REGION}" \
     --query 'Volumes[0].VolumeId' --output text 2>/dev/null || true
 }
 
-VOL_ID=$(retry find_volume 12 5)   # 최대 1분
+VOL_ID=$(retry find_volume 12 5)
 if [[ -z "$VOL_ID" || "$VOL_ID" == "None" ]]; then
   echo "❌ 데이터 볼륨(${volume_tag})을 찾을 수 없습니다." >&2
   exit 1
 fi
 
 aws ec2 attach-volume \
-  --volume-id  "${VOL_ID}" \
-  --instance-id "${INSTANCE_ID}" \
+  --volume-id  "$${VOL_ID}" \
+  --instance-id "$${INSTANCE_ID}" \
   --device /dev/sdf \
-  --region "${AWS_REGION}"
+  --region "$${AWS_REGION}"
 
 # 4) 디바이스 확인 후 마운트 (파일시스템 체크 및 포맷 로직 추가)
 retry test -e /dev/xvdh 30 2 || retry test -e /dev/sdf 30 2
 DEV_PATH=$(test -e /dev/xvdh && echo /dev/xvdh || echo /dev/sdf)
 
-# 파일시스템이 있는지 확인하고, 없으면 ext4로 포맷
 if ! blkid -s TYPE -o value "$DEV_PATH"; then
-  echo "파일시스템이 없어 ${DEV_PATH}를 포맷합니다."
+  echo "파일시스템이 없어 $${DEV_PATH}를 포맷합니다."
   mkfs.ext4 "$DEV_PATH"
 fi
 
 mkdir -p /data
 mount "$DEV_PATH" /data
 
-# 5) 애플리케이션 기동
+# 5) Elastic IP 재연결
+aws ec2 associate-address --instance-id "$${INSTANCE_ID}" --allocation-id "${allocation_id}" --region "$${AWS_REGION}"
+
+# 6) 애플리케이션 기동
 systemctl start myapp
 
-# 6) 유저데이터 완료 SNS 알림
-TOPIC_ARN="arn:aws:sns:${AWS_REGION}:${ACCOUNT_ID}:SpotRecoveryAlerts"
+# 7) 유저데이터 완료 SNS 알림
+TOPIC_ARN="arn:aws:sns:$${AWS_REGION}:$${ACCOUNT_ID}:SpotRecoveryAlerts"
 
 aws sns publish \
-  --topic-arn "${TOPIC_ARN}" \
-  --message   "✅ userdata COMPLETE on ${INSTANCE_ID} (ASG=${ASG_NAME})" \
-  --region    "${AWS_REGION}"
+  --topic-arn "$${TOPIC_ARN}" \
+  --subject "✅ userdata COMPLETE on $${INSTANCE_ID}" \
+  --message "Instance $${INSTANCE_ID} user-data script finished successfully." \
+  --region "$${AWS_REGION}"
 
 exit 0

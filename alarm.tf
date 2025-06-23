@@ -36,6 +36,6 @@ data "aws_iam_policy_document" "ec2_sns_publish" {
 
 resource "aws_iam_role_policy" "ec2_inline_sns" {
   name   = "ec2-sns-publish"
-  role   = aws_iam_role.ec2.name # ← 기존 EC2 역할 리소스
+  role   = aws_iam_role.ec2_role.name # ← 기존 EC2 역할 리소스
   policy = data.aws_iam_policy_document.ec2_sns_publish.json
 }
