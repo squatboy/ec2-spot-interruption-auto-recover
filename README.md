@@ -20,7 +20,6 @@ This infrastructure example demonstrates how to automate data backup and instanc
 6. **Alarms & Notifications**:
    - When a Spot interruption warning is received, an **SNS alert** is triggered.
    - When the `user-data` script finishes successfully on the new instance, it publishes a **success message** to SNS.
-7. Finally, the Lambda function **re-associates** the Elastic IP to the new instance, completing a near-seamless recovery without IP changes.
 
 ---
 
@@ -72,7 +71,7 @@ terraform apply -auto-approve
 ### 4. Verify Deployment
 
 1.  **Confirm SNS Subscription**: Check your email for a subscription confirmation link from AWS and click it. You will not receive alerts otherwise.
-2.  **Check Resources**: In the AWS Console, verify that the Auto Scaling Group, Lambda function, EventBridge rule, and Elastic IP have been created.
+2.  **Check Resources**: In the AWS Console, verify that the Auto Scaling Group, Lambda function and EventBridge rule have been created.
 3.  **Access Your Application**: Find the public IP of the newly launched `spot-app-instance` and access it via your browser to ensure the application is running.
 
 ### 5. Test Recovery
@@ -90,7 +89,6 @@ Trigger a manual interruption to simulate a Spot instance reclaim event and veri
     - You should immediately receive an **SNS alert** for the interruption warning.
     - After two minutes, a new instance will be provisioned by the Auto Scaling Group.
     - You will receive another **SNS alert** confirming the user-data script completed successfully on the new instance.
-    - The Elastic IP should be automatically re-associated with the new instance.
 
 ---
 

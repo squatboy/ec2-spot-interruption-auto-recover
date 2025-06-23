@@ -69,13 +69,10 @@ fi
 mkdir -p /data
 mount "$DEV_PATH" /data
 
-# 5) Elastic IP 재연결
-aws ec2 associate-address --instance-id "$${INSTANCE_ID}" --allocation-id "${allocation_id}" --region "$${AWS_REGION}"
-
-# 6) 애플리케이션 기동
+# 5) 애플리케이션 기동
 systemctl start myapp
 
-# 7) 유저데이터 완료 SNS 알림
+# 6) 유저데이터 완료 SNS 알림
 TOPIC_ARN="arn:aws:sns:$${AWS_REGION}:$${ACCOUNT_ID}:SpotRecoveryAlerts"
 
 aws sns publish \

@@ -1,5 +1,4 @@
 variable "data_volume_tag" { type = string }
-variable "allocation_id" { type = string }
 variable "region" { type = string }
 
 # IAM Role for Lambda
@@ -48,9 +47,8 @@ resource "aws_lambda_function" "backup" {
 
   environment {
     variables = {
-      VOLUME_TAG    = var.data_volume_tag
-      ALLOCATION_ID = var.allocation_id
-      SSM_DOCUMENT  = "AWS-RunShellScript"
+      VOLUME_TAG   = var.data_volume_tag
+      SSM_DOCUMENT = "AWS-RunShellScript"
     }
   }
 }

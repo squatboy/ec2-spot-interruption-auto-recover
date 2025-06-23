@@ -22,16 +22,9 @@ resource "aws_ebs_volume" "data" {
   }
 }
 
-# Elastic IP
-resource "aws_eip" "server" {
-  domain = "vpc"
-  tags   = { Name = "app-eip" }
-}
-
 # Lambda 모듈 호출
 module "lambda_backup" {
   source          = "./lambda"
   data_volume_tag = var.data_volume_tag
-  allocation_id   = aws_eip.server.allocation_id
   region          = var.region
 }

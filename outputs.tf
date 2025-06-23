@@ -3,11 +3,6 @@ output "asg_name" {
   value       = aws_autoscaling_group.app_asg.name
 }
 
-output "eip_public_ip" {
-  description = "Elastic IP 주소"
-  value       = aws_eip.server.public_ip
-}
-
 output "spot_alerts_topic_arn" {
   value       = aws_sns_topic.spot_alerts.arn
   description = "SNS 토픽 ARN (Slack 웹훅 등 추가 구독 시 활용)"

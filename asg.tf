@@ -4,8 +4,7 @@ resource "aws_launch_template" "app" {
   image_id      = data.aws_ami.base.id
   instance_type = var.default_type
   user_data = base64encode(templatefile("${path.module}/userdata.tpl", {
-    volume_tag    = var.data_volume_tag
-    allocation_id = aws_eip.server.allocation_id # EIP Allocation ID 전달
+    volume_tag = var.data_volume_tag
   }))
 
   block_device_mappings {
