@@ -6,7 +6,6 @@
 <img width="1209" alt="docker_arch" src="https://github.com/user-attachments/assets/9e9ab991-62dd-4377-b1e2-bbd8a41bf06f" />
 
 
-
 ## 동작 원리
 
 1.  **EventBridge**가 2분 전 Spot 중단 경고(`EC2 Spot Instance Interruption Warning`) 이벤트를 감지합니다.
