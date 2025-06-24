@@ -1,6 +1,6 @@
 ## 개요
 
-이 인프라 예제는 AWS EC2 Spot 인스턴스가 중단(회수) 경고를 받으면 EventBridge가 알림을 감지하고 Lambda를 통해 데이터 볼륨 스냅샷 및 AMI 백업을 수행한 뒤, Auto Scaling Group의 capacity-rebalance 기능으로 신규 Spot 인스턴스를 프로비저닝하여 최소한의 다운타임으로 서비스 복구를 지원합니다. 모든 리소스는 Terraform으로 코드화하여 관리합니다.
+이 인프라 예제는 AWS EC2 Spot 인스턴스가 중단(회수) 경고를 받으면 EventBridge가 알림을 감지하고 Lambda를 통해 데이터 볼륨 스냅샷을 백업한 뒤, Auto Scaling Group의 capacity-rebalance 기능으로 신규 Spot 인스턴스를 프로비저닝하여 최소한의 다운타임으로 서비스 복구를 지원합니다. 모든 리소스는 Terraform으로 코드화하여 관리합니다.
 
 ## 시스템 구성도
 <img width="881" alt="image" src="https://github.com/user-attachments/assets/8fcd990d-8d29-47ee-b412-34147bb190d1" />
@@ -9,10 +9,10 @@
 ## 동작 원리
 
 1.  **EventBridge**가 2분 전 Spot 중단 경고(`EC2 Spot Instance Interruption Warning`) 이벤트를 감지합니다.
-2.  해당 이벤트를 **Lambda**로 전달하면, Lambda가 SSM Run Command를 통해 애플리케이션을 안전 종료(graceful shutdown)합니다.
-3.  이어서 Lambda는 **EBS 데이터 볼륨**의 스냅샷과 현재 인스턴스의 **AMI** 생성을 비동기 호출합니다.
+2.  해당 이벤트를 **Lambda**로 전달하면, Lambda가 SSM Run Command를 통해 Docker 컨테이너를 안전하게 종료(graceful shutdown)시킵니다.
+3.  이어서 Lambda는 **EBS 데이터 볼륨**의 스냅샷 생성을 비동기 호출하여 데이터를 백업합니다.
 4.  **Auto Scaling Group**(`capacity_rebalance=true`)이 즉시 새 Spot 인스턴스를 프로비저닝합니다.
-5.  새 인스턴스는 부팅 시 실행되는 **user-data 스크립트**를 통해 이전 데이터 볼륨을 자동으로 마운트하고 애플리케이션을 실행합니다.
+5.  새 인스턴스는 부팅 시 실행되는 **user-data 스크립트**를 통해 이전 데이터 볼륨을 자동으로 마운트하고, ECR에서 최신 Docker 이미지를 받아 컨테이너를 실행합니다.
 6.  **알림 및 모니터링**:
     *   스팟 중단 경고가 감지되면 **SNS 경고 메시지**가 발송됩니다.
     *   새 인스턴스에서 user-data 스크립트가 성공적으로 종료되면, **성공 메시지**를 SNS를 통해 발송합니다.
@@ -26,21 +26,27 @@
 ### 1. 사전 준비
 
 - Terraform v1.2 이상
-- AWS CLI 설정 (IAM 권한: EC2, SSM, Lambda, SNS, Events, IAM)
-- 애플리케이션이 설치된 커스텀 AMI
+- AWS CLI 설정 (IAM 권한: EC2, SSM, Lambda, SNS, Events, IAM, ECR)
+- 애플리케이션이 포함된 Docker 이미지를 Amazon ECR에 푸시
+- Docker 엔진이 설치된 커스텀 AMI
 
 ### 2. 배포 환경 준비
 
 #### 2.1 단계: 커스텀 AMI 생성 (필수)
 
-이 프로젝트는 애플리케이션이 설치되고 systemd 서비스로 구성된 **사전 제작된 AMI가 반드시 필요합니다.** Terraform은 이 AMI를 사용하여 새로운 Spot 인스턴스를 시작합니다.
+이 프로젝트는 **Docker 엔진이 설치된 사전 제작된 AMI가 반드시 필요합니다.**
 
-1.  **기본 인스턴스 시작**: Amazon Linux 2와 같은 기본 AMI로 인스턴스를 시작하고 애플리케이션을 설치합니다.
-2.  **애플리케이션 서비스 활성화**: `sudo systemctl enable myapp`과 같이 애플리케이션을 서비스로 활성화합니다.
-3.  **AMI 생성**: 설정이 완료된 인스턴스에서 AMI를 생성합니다.
-4.  **AMI 태그 지정**: 생성된 AMI에 **키**는 `Name`, **값**은 `myapp-base-*` 패턴과 일치하도록 태그를 지정합니다(예: `myapp-base-v1.0`). Terraform 스크립트는 이 태그를 사용하여 AMI를 찾습니다.
+1.  **기본 인스턴스 시작**: Amazon Linux 2와 같은 기본 AMI로 인스턴스를 시작합니다.
+2.  **Docker 설치 및 활성화**: `sudo yum install -y docker`, `sudo systemctl enable docker` 명령으로 Docker를 설치하고 서비스로 활성화합니다.
+3.  **AMI 생성 및 태그 지정**: 설정이 완료된 인스턴스에서 AMI를 생성하고, `Name` 태그 값을 `myapp-base-v1`과 같이 지정합니다. Terraform은 이 태그를 사용하여 AMI를 찾습니다.
 
-#### 2.2 단계: 설정 파일 준비
+#### 2.2 단계: Docker 이미지 준비 및 ECR에 푸시
+
+1.  애플리케이션(예: 마인크래프트 서버)이 포함된 `Dockerfile`을 작성하고 이미지를 빌드합니다.
+2.  AWS ECR에 리포지토리를 생성합니다.
+3.  빌드한 이미지를 ECR 리포지토리에 푸시합니다.
+
+#### 2.3 단계: 설정 파일 준비
 
 리포지토리를 복제하고 예제 파일을 복사하여 `terraform.tfvars` 파일을 생성합니다. 이 파일은 배포에 필요한 설정 값을 저장합니다.
 

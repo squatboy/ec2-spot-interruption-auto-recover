@@ -32,6 +32,11 @@ variable "data_volume_tag" {
   default     = "myapp-data"
 }
 
+variable "ecr_repository_url" {
+  description = "애플리케이션 Docker 이미지가 저장된 ECR 리포지토리 URL"
+  type        = string
+}
+
 variable "alert_email" {
   description = "알림을 받을 이메일 주소"
   type        = string

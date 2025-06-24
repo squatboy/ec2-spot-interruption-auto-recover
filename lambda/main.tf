@@ -20,11 +20,19 @@ resource "aws_iam_role_policy" "lambda_policy" {
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
-      { Effect = "Allow", Action = [
-        "ec2:CreateSnapshot", "ec2:CreateImage", "ec2:CreateTags",
-        "ec2:DescribeInstances", "ec2:AssociateAddress"
-      ], Resource = "*" },
-      { Effect = "Allow", Action = ["ssm:SendCommand"], Resource = "*" },
+      {
+        Effect = "Allow"
+        Action = [
+          "ec2:CreateSnapshot", "ec2:CreateTags",
+          "ec2:DescribeInstances"
+        ]
+        Resource = "*"
+      },
+      {
+        Effect   = "Allow"
+        Action   = ["ssm:SendCommand"]
+        Resource = "*"
+      },
       { Effect = "Allow", Action = [
         "logs:CreateLogGroup", "logs:CreateLogStream", "logs:PutLogEvents"
       ], Resource = "*" }
