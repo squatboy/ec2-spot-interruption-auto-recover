@@ -5,7 +5,8 @@
 This infrastructure example demonstrates how to automate data backup and instance replacement with minimal downtime when an AWS EC2 Spot Instance receives an interruption warning. Upon warning detection by EventBridge, a Lambda function takes a snapshot of the data volume, and the Auto Scaling Group’s capacity-rebalancing feature provisions a new Spot Instance. All resources are managed as code using Terraform.
 
 ## System Architecture
-<img width="881" alt="image" src="https://github.com/user-attachments/assets/8fcd990d-8d29-47ee-b412-34147bb190d1" />
+<img width="1209" alt="docker_arch" src="https://github.com/user-attachments/assets/279e0244-f1ae-4e90-abb8-1bfa8a00ecec" />
+
 
 ## How It Works
 
