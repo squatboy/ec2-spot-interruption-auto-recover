@@ -3,7 +3,7 @@
 이 인프라 예제는 AWS EC2 Spot 인스턴스가 중단(회수) 경고를 받으면 EventBridge가 알림을 감지하고 Lambda를 통해 데이터 볼륨 스냅샷 및 AMI 백업을 수행한 뒤, Auto Scaling Group의 capacity-rebalance 기능으로 신규 Spot 인스턴스를 프로비저닝하여 최소한의 다운타임으로 서비스 복구를 지원합니다. 모든 리소스는 Terraform으로 코드화하여 관리합니다.
 
 ## 시스템 구성도
-<img width="881" alt="image" src="https://github.com/user-attachments/assets/8fcd990d-8d29-47ee-b412-34147bb190d1" />
+<img width="1213" alt="ami_arch" src="https://github.com/user-attachments/assets/0c9a1b25-87ee-475c-a73f-8f4b20e1b997" />
 
 
 ## 동작 원리
