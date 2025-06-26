@@ -26,6 +26,11 @@ resource "aws_launch_template" "app" {
   iam_instance_profile {
     name = aws_iam_instance_profile.ec2.name
   }
+
+  # EBS 볼륨이 완전히 생성된 후에 Launch Template이 생성되도록 의존성 추가
+  depends_on = [
+    aws_ebs_volume.data
+  ]
 }
 
 # Auto Scaling Group (Spot + capacity_rebalance)

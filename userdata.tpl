@@ -2,14 +2,18 @@
 set -euo pipefail
 
 # 0) 공통 함수
+# 사용법: retry <최대 시도 횟수> <대기 시간(초)> <실행할 명령어와 인자들>
 retry() {
-  local n=0
-  local max=$${2:-12}
-  local sleep_s=$${3:-5}
-  until "$@"; do
-    ((n++)) && (( n >= max )) && return 1
-    sleep "$sleep_s"
-  done
+    local max_retries=$1
+    local sleep_interval=$2
+    shift 2 # 함수 인자에서 처음 2개(횟수, 시간)를 제거
+    local cmd=("$@") # 나머지 모든 인자를 '명령어'로 인식
+
+    local n=0
+    until "$${cmd[@]}"; do
+        ((n++)) && (( n >= max_retries )) && return 1
+        sleep "$sleep_interval"
+    done
 }
 
 # 1) 메타데이터(IMDSv2)로 식별 정보 확보
@@ -21,18 +25,33 @@ ACCOUNT_ID=$(meta dynamic/instance-identity/document | grep -oP '"accountId"\s*:
 
 # 2) 데이터 EBS 볼륨 attach
 find_volume() {
-  aws ec2 describe-volumes --filters "Name=tag:Name,Values=${volume_tag}" "Name=status,Values=available" --region "$${AWS_REGION}" --query 'Volumes[0].VolumeId' --output text 2>/dev/null || true
+  local vol_id
+  vol_id=$(aws ec2 describe-volumes --filters "Name=tag:Name,Values=${volume_tag}" "Name=status,Values=available" --region "$${AWS_REGION}" --query 'Volumes[0].VolumeId' --output text 2>/dev/null)
+
+  if [[ -n "$vol_id" && "$vol_id" != "None" ]]; then
+    echo "$vol_id"
+    return 0
+  else
+    return 1
+  fi
 }
-VOL_ID=$(retry find_volume 12 5)
-if [[ -z "$VOL_ID" || "$VOL_ID" == "None" ]]; then
+
+VOL_ID=$(retry 12 5 find_volume)
+if [[ -z "$VOL_ID" ]]; then
   echo "❌ 데이터 볼륨(${volume_tag})을 찾을 수 없습니다." >&2
   exit 1
 fi
 aws ec2 attach-volume --volume-id "$${VOL_ID}" --instance-id "$${INSTANCE_ID}" --device /dev/sdf --region "$${AWS_REGION}"
 
 # 3) 디바이스 확인 후 마운트
-retry test -e /dev/xvdh 30 2 || retry test -e /dev/sdf 30 2
-DEV_PATH=$(test -e /dev/xvdh && echo /dev/xvdh || echo /dev/sdf)
+find_device_path() {
+    if [ -e /dev/xvdf ]; then echo "/dev/xvdf"; return 0;
+    elif [ -e /dev/sdf ]; then echo "/dev/sdf"; return 0;
+    fi
+    return 1
+}
+
+DEV_PATH=$(retry 30 2 find_device_path)
 if ! blkid -s TYPE -o value "$DEV_PATH"; then
   echo "파일시스템이 없어 $${DEV_PATH}를 포맷합니다."
   mkfs.ext4 "$DEV_PATH"
@@ -41,18 +60,19 @@ mkdir -p /data
 mount "$DEV_PATH" /data
 
 # 4) Docker 컨테이너 실행
-# Docker 데몬 활성화
-systemctl start docker
+
+# Docker 데몬 활성화 및 시작
+systemctl enable --now docker
 # ECR 로그인
 aws ecr get-login-password --region "$${AWS_REGION}" | docker login --username AWS --password-stdin "$${ACCOUNT_ID}.dkr.ecr.$${AWS_REGION}.amazonaws.com"
 # 기존 컨테이너 정리 (재부팅 시 대비)
-docker stop myapp || true
-docker rm myapp || true
-# Docker 컨테이너 실행 (예: 마인크래프트 서버)
+docker stop myapp-container || true
+docker rm myapp-container || true
+# Docker 컨테이너 실행
 docker run -d \
-  --name myapp \
+  --name myapp-container \
   -v /data:/myapp \
-  -p 1234:1234 \
+  -p 1234:80 \
   --restart always \
   "${ecr_repository_url}"
 
