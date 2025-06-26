@@ -29,10 +29,23 @@
 - AWS CLI 설정 (IAM 권한: EC2, SSM, Lambda, SNS, Events, IAM, ECR)
 - 애플리케이션이 포함된 Docker 이미지를 Amazon ECR에 푸시
 - Docker 엔진이 설치된 커스텀 AMI
+- SSH 접속을 위한 "spot-instance-key" 이름의 RSA 키 페어 생성 (선택 사항)
 
 ### 2. 배포 환경 준비
 
-#### 2.1 단계: 커스텀 AMI 생성 (필수)
+#### 2.1 단계: SSH 키 페어 생성 (선택 사항)
+
+인스턴스에 SSH로 접속하여 디버깅이 필요한 경우를 대비해 키 페어를 미리 생성해둘 수 있습니다.
+
+```bash
+# AWS EC2 키 페어 생성
+aws ec2 create-key-pair --key-name spot-instance-key --query 'KeyMaterial' --output text > ~/.ssh/spot-instance-key.pem
+
+# 키 파일 권한 설정
+chmod 400 ~/.ssh/spot-instance-key.pem
+```
+
+#### 2.2 단계: 커스텀 AMI 생성 (필수)
 
 이 프로젝트는 **Docker 엔진이 설치된 사전 제작된 AMI가 반드시 필요합니다.**
 
@@ -40,13 +53,13 @@
 2.  **Docker 설치 및 활성화**: `sudo yum install -y docker`, `sudo systemctl enable docker` 명령으로 Docker를 설치하고 서비스로 활성화합니다.
 3.  **AMI 생성 및 태그 지정**: 설정이 완료된 인스턴스에서 AMI를 생성하고, `Name` 태그 값을 `myapp-base-v1`과 같이 지정합니다. Terraform은 이 태그를 사용하여 AMI를 찾습니다.
 
-#### 2.2 단계: Docker 이미지 준비 및 ECR에 푸시
+#### 2.3 단계: Docker 이미지 준비 및 ECR에 푸시
 
 1.  애플리케이션(예: 마인크래프트 서버)이 포함된 `Dockerfile`을 작성하고 이미지를 빌드합니다.
 2.  AWS ECR에 리포지토리를 생성합니다.
 3.  빌드한 이미지를 ECR 리포지토리에 푸시합니다.
 
-#### 2.3 단계: 설정 파일 준비
+#### 2.4 단계: 설정 파일 준비
 
 리포지토리를 복제하고 예제 파일을 복사하여 `terraform.tfvars` 파일을 생성합니다. 이 파일은 배포에 필요한 설정 값을 저장합니다.
 
@@ -78,14 +91,22 @@ terraform apply -auto-approve
 
 ### 5. 복구 테스트
 
-Spot 인스턴스 회수 이벤트를 시뮬레이션하여 복구 프로세스를 테스트합니다.
+[amazon-ec2-spot-interrupter](https://github.com/aws/amazon-ec2-spot-interrupter)의 툴을 사용하여 Spot 인스턴스 중단 이벤트를 시뮬레이션하고 복구 프로세스를 테스트합니다.
+
+#### 5.1 도구 설치
+
+```bash
+# Homebrew를 통한 EC2 Spot Interrupter 설치
+brew tap aws/tap
+brew install ec2-spot-interrupter
+```
+
+#### 5.2 복구 테스트 실행
 
 1.  실행 중인 Spot 인스턴스의 ID를 확인합니다.
-2.  아래 AWS CLI 명령어를 실행합니다:
+2.  아래 명령어로 중단 이벤트를 시뮬레이션합니다:
     ```bash
-    aws ec2 send-spot-instance-interruptions \
-      --instance-ids <your-instance-id> \
-      --region <your-aws-region>
+    ec2-spot-interrupter --instance-ids <your-instance-id>
     ```
 3.  **복구 과정 모니터링**:
     - 즉시 중단 경고에 대한 **SNS 알림**을 받게 됩니다.
@@ -98,4 +119,3 @@ Spot 인스턴스 회수 이벤트를 시뮬레이션하여 복구 프로세스�
 - 스냅샷/AMI 생성은 2분 이내 호출 완료되어야 하며, AWS 백엔드에서 백업 작업이 계속 진행됩니다.
 - 멀티 AZ 데이터 안정성이 필요하다면 EBS 대신 EFS를 사용하는 것을 고려하고, user-data 스크립트도 이에 맞게 수정하세요.
 - user-data 및 Lambda 핸들러 내부의 명령은 실제 사용하는 애플리케이션 로직에 맞게 수정하여 적용하세요.
-
