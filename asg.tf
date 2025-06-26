@@ -3,6 +3,8 @@ resource "aws_launch_template" "app" {
   name_prefix   = "spot-app-"
   image_id      = data.aws_ami.base.id
   instance_type = var.default_type
+  key_name      = "spot-instance-key"
+
   user_data = base64encode(templatefile("${path.module}/userdata.tpl", {
     volume_tag         = var.data_volume_tag
     ecr_repository_url = var.ecr_repository_url
