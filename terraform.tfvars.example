@@ -1,25 +1,14 @@
-# AWS Region (e.g., "us-east-1")
 region = "ap-northeast-2"
 
-# The Availability Zone where the EBS volume and instance will be created.
-# Ensure your subnet is in this AZ.
 availability_zone = "ap-northeast-2a"
 
-# A list of subnet IDs where the Auto Scaling Group can launch instances.
-# For this project, a single subnet ID is sufficient.
-# Replace with your actual subnet ID.
-private_subnets = ["subnet-0123456789abcdef0"]
+subnet = ["subnet-1234567890abcde"]
 
-# The email address to receive SNS notifications for alerts.
-# Replace with your actual email address.
-alert_email = "your-email@example.com"
+alert_email = "example@mail.com"
 
-# The instance type to use for the Spot instance.
-# Choose a type available in your selected region and AZ.
-# "t2.micro" or "t3.micro" are good for testing and are Free Tier eligible.
 default_type   = "t2.micro"
 instance_types = ["t2.micro"]
 
-# A unique tag name for the persistent EBS data volume.
-# This tag is used by the user-data script to find and attach the volume.
-data_volume_tag = "spot-recovery-test-data"
+# data_volume_tag = "spot-recovery-test-data"
+
+ecr_repository_url = "123456789.dkr.ecr.ap-northeast-2.amazonaws.com/myapp-image"

@@ -8,6 +8,12 @@ resource "aws_launch_template" "app" {
     ecr_repository_url = var.ecr_repository_url
   }))
 
+  # Public IP를 할당 허용
+  network_interfaces {
+    associate_public_ip_address = true
+    delete_on_termination       = true
+  }
+
   block_device_mappings {
     device_name = "/dev/xvda"
     ebs {
@@ -50,7 +56,7 @@ resource "aws_autoscaling_group" "app_asg" {
     }
   }
 
-  vpc_zone_identifier = var.private_subnets
+  vpc_zone_identifier = var.subnet
   tag {
     key                 = "Name"
     value               = "spot-app-instance"
