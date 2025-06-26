@@ -9,8 +9,8 @@ variable "availability_zone" {
   type        = string
 }
 
-variable "private_subnets" {
-  description = "ASG가 사용할 Private Subnet ID 목록"
+variable "subnet" {
+  description = "ASG가 사용할 Subnet ID"
   type        = list(string)
 }
 
