@@ -2,14 +2,14 @@ provider "aws" {
   region = var.region
 }
 
-# 사용자 정의 AMI 검색 (CI/CD에서 관리하는 myapp-base-*)
+# 사용자 정의 AMI 검색
 data "aws_ami" "base" {
   owners      = ["self"]
   most_recent = true
 
   filter {
     name   = "tag:Name"
-    values = ["myapp-base-*"]
+    values = ["myapp-base-v1"]
   }
 }
 
