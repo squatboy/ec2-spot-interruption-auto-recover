@@ -2,7 +2,7 @@
 
 ## Overview
 
-This infrastructure example demonstrates how to automate data backup and instance replacement with minimal downtime when an AWS EC2 Spot Instance receives an interruption warning. Upon warning detection by EventBridge, a Lambda function takes a snapshot of the data volume, and the Auto Scaling Group’s capacity-rebalancing feature provisions a new Spot Instance. All resources are managed as code using Terraform.
+This infrastructure example demonstrates how to automate data backup and instance replacement with minimal downtime when an AWS EC2 Spot Instance receives an interruption warning. Upon warning detection by EventBridge, a Lambda function takes a snapshot of the data volume, and the Auto Scaling Group's capacity-rebalancing feature provisions a new Spot Instance. All resources are managed as code using Terraform.
 
 ## System Architecture
 <img width="1209" alt="docker_arch" src="https://github.com/user-attachments/assets/279e0244-f1ae-4e90-abb8-1bfa8a00ecec" />
@@ -31,10 +31,23 @@ Follow these steps to deploy the infrastructure.
 -   AWS CLI configured with appropriate IAM permissions (EC2, SSM, Lambda, SNS, Events, IAM, ECR).
 -   A Docker image containing your application, pushed to Amazon ECR.
 -   A custom AMI with the Docker engine installed.
+-   Create an RSA key pair named "spot-instance-key" for SSH access (optional).
 
 ### 2. Prepare Your Environment
 
-#### Step 2.1: Create a Custom AMI (Mandatory)
+#### Step 2.1: Create SSH Key Pair (Optional)
+
+You can create a key pair in advance for debugging purposes when SSH access to instances is needed.
+
+```bash
+# Create AWS EC2 key pair
+aws ec2 create-key-pair --key-name spot-instance-key --query 'KeyMaterial' --output text > ~/.ssh/spot-instance-key.pem
+
+# Set key file permissions
+chmod 400 ~/.ssh/spot-instance-key.pem
+```
+
+#### Step 2.2: Create a Custom AMI (Mandatory)
 
 This project requires a pre-existing AMI with the **Docker engine installed**.
 
@@ -42,14 +55,14 @@ This project requires a pre-existing AMI with the **Docker engine installed**.
 2.  **Install and enable Docker**: Run `sudo yum install -y docker` and `sudo systemctl enable docker` to install and enable the Docker service.
 3.  **Create and tag the AMI**: Create an AMI from the configured instance and tag it with `Name` and a value like `docker-base-v1`. Terraform uses this tag to find the AMI.
 
-#### Step 2.2: Prepare Docker Image and Push to ECR
+#### Step 2.3: Prepare Docker Image and Push to ECR
 
 1.  Create a `Dockerfile` for your application
 2.  Build the Docker image.
 3.  Create a repository in AWS ECR.
 4.  Push the built image to your ECR repository.
 
-#### Step 2.3: Prepare Configuration File
+#### Step 2.4: Prepare Configuration File
 
 Clone the repository and create a `terraform.tfvars` file from the example. This file will store your specific configuration values.
 
@@ -81,14 +94,22 @@ terraform apply -auto-approve
 
 ### 5. Test Recovery
 
-Trigger a manual interruption to simulate a Spot instance reclaim event and verify the recovery process.
+Use [amazon-ec2-spot-interrupter](https://github.com/aws/amazon-ec2-spot-interrupter) tool to simulate a Spot instance interruption event and verify the recovery process.
+
+#### 5.1 Install the Tool
+
+```bash
+# Install EC2 Spot Interrupter via Homebrew
+brew tap aws/tap
+brew install ec2-spot-interrupter
+```
+
+#### 5.2 Execute Recovery Test
 
 1.  Get the instance ID of your running Spot instance.
-2.  Run the following AWS CLI command:
+2.  Simulate an interruption event with the following command:
     ```bash
-    aws ec2 send-spot-instance-interruptions \
-      --instance-ids <your-instance-id> \
-      --region <your-aws-region>
+    ec2-spot-interrupter --instance-ids <your-instance-id>
     ```
 3.  **Monitor the recovery**:
     -   You should immediately receive an **SNS alert** for the interruption warning.
@@ -102,4 +123,4 @@ Trigger a manual interruption to simulate a Spot instance reclaim event and veri
 -   The EBS snapshot is used for disaster recovery. Manage your production Docker images through a separate CI/CD pipeline.
 -   The snapshot creation call must complete within the two-minute warning window; the AWS backend will finish the backup operation asynchronously.
 -   For multi-AZ data durability, consider replacing the EBS volume with EFS and updating the user-data script accordingly.
--   Customize the commands within the user-data script and Lambda handler to match your specific
+-   Customize the commands within the user-data script and Lambda handler to match your specific application requirements.
