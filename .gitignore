@@ -3,3 +3,5 @@
 .terraform/providers/registry.terraform.io/hashicorp/aws/6.0.0/darwin_arm64/terraform-provider-aws_v6.0.0_x5
 lambda/handler.zip
 terraform.tfvars
+terraform.tfstate
+terraform.tfstate.backup
